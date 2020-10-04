@@ -38,40 +38,49 @@ void* ui(void* arg) {
     }
 }
 
+void adicionar_musica() {
+    int minutos;
+    int segundos;
+    Musica musicaLeitura;
+
+    cout << "Digite o nome da musica" << endl;
+    cin.ignore();
+    getline(cin, musicaLeitura.nome);
+
+    cout << "Digite o artista" << endl;
+    getline(cin, musicaLeitura.artista);
+
+    cout << "Digite a duraçao de MINUTOS da musica e depois SEGUNDOS" << endl;
+    cin >> minutos >> segundos;
+    musicaLeitura.duracao_em_segundos = (minutos*60)+segundos;
+
+    fila.emplace_back(musicaLeitura);
+}
+
+void remover_musica() {
+    int indice;
+    cout << "Qual o indice da musica a ser removida?" << endl;
+    cin >> indice;
+    fila.erase(fila.begin() + indice);
+}
+
 void* receberInput(void* arg) {
     while(true) {
         while(pthread_mutex_trylock(&mutexx));
+
             cout << "Escolha uma opção" << endl;
             cout << "A de Add \t R de Remove \t Q de Quit" << endl;
+            char selecao;
+            cin >> selecao;
 
-            char ch;
-            int indice;
-            int minutos;
-            int segundos;
-            Musica musicaLeitura;
-            
-            cin >> ch;
-
-            switch (ch) {
+            switch (selecao) {
                 case 'a':
                 case 'A':
-                    cout << "Digite o nome da musica (_ no lugar de espaco)" << endl;
-                    cin >> musicaLeitura.nome;
-
-                    cout << "Digite o artista (_ no lugar de espaco)" << endl;
-                    cin >> musicaLeitura.artista;
-
-                    cout << "Digite a duraçao de MINUTOS da musica e depois SEGUNDOS" << endl;
-                    cin >> minutos >> segundos;
-                    musicaLeitura.duracao_em_segundos = (minutos*60)+segundos;
-
-                    fila.emplace_back(musicaLeitura);
+                    adicionar_musica();
                     break;
                 case 'R':
                 case 'r':
-                    cout << "Qual o indice da musica a ser removida?" << endl;
-                    cin >> indice;
-                    fila.erase(fila.begin() + indice);
+                    remover_musica();
                     break;
                 case 'q':
                 case 'Q':
@@ -83,9 +92,7 @@ void* receberInput(void* arg) {
 
         pthread_mutex_unlock(&mutexx);
     }
-    
 }
-
 
 int main(int argc, char *argv[]) {
     cin.tie(nullptr);
