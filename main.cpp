@@ -13,86 +13,90 @@ struct Musica
     int duracao_em_segundos;
 };
 
-string getstrteste()
-{
-    std::string input;
+vector<Musica> fila;
+pthread_mutex_t mutexx = PTHREAD_MUTEX_INITIALIZER;
 
-    // let the terminal do the line editing
-    nocbreak();
-    echo();
+void* ui(void* arg) {
+    while(true) {
+        while(pthread_mutex_trylock(&mutexx));
 
-    // this reads from buffer after <ENTER>, not "raw" 
-    // so any backspacing etc. has already been taken care of
-    int ch = getch();
+        cout << "# \t Artista \t Musica \t Duracao" << endl;
+        if(fila.empty()) {
+            cout << "A fila de execucao esta vazia :(" << endl;
+        } else {
+            int i = 0;
+            for(auto musica : fila) {
+                int minutos = musica.duracao_em_segundos / 60;
+                int segundos = musica.duracao_em_segundos % 60;
 
-    while ( ch != '\n' )
-    {
-        input.push_back( ch );
-        ch = getch();
+                cout << i << '\t' << musica.artista << '\t' << musica.nome << '\t' << minutos << ':' << segundos <<  endl;
+                i++;
+            }
+        }
+        pthread_mutex_unlock(&mutexx);
+        sleep(1);
     }
-
-    // restore your cbreak / echo settings here
-
-    return input;
 }
 
-int main(int argc, char *argv[]) {
-    vector<Musica> fila;
-
-                Musica musicaLeitura;
-                int minutos;
-                int segundos;
-                int duracao_em_segundos;
-
-    initscr();
-
+void* receberInput(void* arg) {
     while(true) {
-        printw("Seja bem vindo ao JPLay.\n");
+        while(pthread_mutex_trylock(&mutexx));
+            cout << "Escolha uma opção" << endl;
+            cout << "A de Add \t R de Remove \t Q de Quit" << endl;
 
-        if(fila.empty()) {
-            printw("A fila de execução está vazia\n");
-        } else {
-            printw("Artista \t Musica \t Duracao \n");
-            for(auto musica : fila) {
-                printw("%s \t %s \t %d \n", musica.artista.data(), musica.nome.data(), musica.duracao_em_segundos);
+            char ch;
+            int indice;
+            int minutos;
+            int segundos;
+            Musica musicaLeitura;
+            
+            cin >> ch;
+
+            switch (ch) {
+                case 'a':
+                case 'A':
+                    cout << "Digite o nome da musica (_ no lugar de espaco)" << endl;
+                    cin >> musicaLeitura.nome;
+
+                    cout << "Digite o artista (_ no lugar de espaco)" << endl;
+                    cin >> musicaLeitura.artista;
+
+                    cout << "Digite a duraçao de MINUTOS da musica e depois SEGUNDOS" << endl;
+                    cin >> minutos >> segundos;
+                    musicaLeitura.duracao_em_segundos = (minutos*60)+segundos;
+
+                    fila.emplace_back(musicaLeitura);
+                    break;
+                case 'R':
+                case 'r':
+                    cout << "Qual o indice da musica a ser removida?" << endl;
+                    cin >> indice;
+                    fila.erase(fila.begin() + indice);
+                    break;
+                case 'q':
+                case 'Q':
+                    exit(0);
+                    break;
+                default:
+                    cout << "Opcao invalida :(" << endl;
             }
-            refresh();
-        }
 
-
-        printw("Escolha uma opção\n");
-        int ch = getch();
-
-        switch (ch) {
-            case 'a':
-            case 'A':
-
-                printw("Insira o nome da musica\n");
-                refresh();
-                musicaLeitura.nome = getstrteste();
-
-                printw("Insira o nome do artista\n");
-                refresh();
-                musicaLeitura.artista = getstrteste();
-                
-                printw("Insira a duracao da musica no formato MM:ss\n");
-                refresh();
-                // getstrteste(duracao);
-                // sscanf(duracao, "%d:%d", &minutos, &segundos);
-                musicaLeitura.duracao_em_segundos = 0;
-                
-                fila.emplace_back(musicaLeitura);
-
-                break;
-            case 'q':
-            case 'Q':
-                endwin();
-                exit(0);
-                break;
-        }
-        refresh();
+        pthread_mutex_unlock(&mutexx);
     }
+    
+}
 
-    endwin();
+
+int main(int argc, char *argv[]) {
+    cin.tie(nullptr);
+
+    pthread_t threads[2];
+
+    pthread_create(&threads[0], NULL, &ui, NULL);
+    pthread_create(&threads[1], NULL, &receberInput, NULL);
+
+    pthread_join(threads[0], NULL);
+    pthread_join(threads[1], NULL);
+
     return 0;
 }
