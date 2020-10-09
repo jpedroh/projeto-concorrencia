@@ -10,23 +10,23 @@ struct Musica
 {
     string nome;
     string artista;
-    int duracao_em_segundos;
+    int duracao_em_segundos; //a duracao em segundos foi adicionada para uso futuro com a funcao de play/pause
 };
 
 vector<Musica> fila;
 pthread_mutex_t mutexx = PTHREAD_MUTEX_INITIALIZER;
 
 void* ui(void* arg) {
-    while(true) {
-        while(pthread_mutex_trylock(&mutexx));
-
+    while(true) {                                                       //o laco eh para simular a tela de reproducao do player, sempre
+        while(pthread_mutex_trylock(&mutexx));                          //exibindo a fila de reproducao
+                                                                        
         cout << "# \t Artista \t Musica \t Duracao" << endl;
         if(fila.empty()) {
             cout << "A fila de execucao esta vazia :(" << endl;
         } else {
             int i = 0;
             for(auto musica : fila) {
-                int minutos = musica.duracao_em_segundos / 60;
+                int minutos = musica.duracao_em_segundos / 60;          //para uma exibicao mais facil dividimos a duracao em minutos e segundos
                 int segundos = musica.duracao_em_segundos % 60;
 
                 cout << i << '\t' << musica.artista << '\t' << musica.nome << '\t' << minutos << ':' << segundos <<  endl;
@@ -34,8 +34,8 @@ void* ui(void* arg) {
             }
         }
         pthread_mutex_unlock(&mutexx);
-        sleep(1);
-    }
+        sleep(1);                                                       //o sleep eh para que mensagem nao seja imprimida mais de uma vez antes de 
+    }                                                                   //receber o primeiro input do usuario
 }
 
 void adicionar_musica() {
@@ -65,10 +65,10 @@ void remover_musica() {
 }
 
 void* receberInput(void* arg) {
-    while(true) {
-        while(pthread_mutex_trylock(&mutexx));
-
-            cout << "Escolha uma opção" << endl;
+    while(true) {                                                           //o laco eh para simular a tela de reproducao do player, sempre dando a
+        while(pthread_mutex_trylock(&mutexx));                              //opcao de escolher uma acao
+                                                                            //o mutex/trylock eh para que somente uma musica possa ser 
+            cout << "Escolha uma opção" << endl;                            //adicionada ou removida por vez
             cout << "A de Add \t R de Remove \t Q de Quit" << endl;
             char selecao;
             cin >> selecao;
@@ -99,8 +99,8 @@ int main(int argc, char *argv[]) {
 
     pthread_t threads[2];
 
-    pthread_create(&threads[0], NULL, &ui, NULL);
-    pthread_create(&threads[1], NULL, &receberInput, NULL);
+    pthread_create(&threads[0], NULL, &ui, NULL);                       //primeira thread responsavel pela interface, exibindo a tela do player
+    pthread_create(&threads[1], NULL, &receberInput, NULL);             //segunda thread responsavel por lidar com os inputs do usuario
 
     pthread_join(threads[0], NULL);
     pthread_join(threads[1], NULL);
