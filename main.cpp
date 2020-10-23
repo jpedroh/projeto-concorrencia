@@ -2,18 +2,23 @@
 #include <ncurses.h>
 #include <pthread.h>
 #include <unistd.h>
+
 #define endl '\n'
 
 using namespace std;
 
-WINDOW *win1;
-WINDOW *win2;
-WINDOW *win3;
+struct Musica {
+    string nome;
+    string artista;
+    int duracao_em_segundos;
+};
 
-int maxX, maxY;
-
-int duracao_atual = 0;
+// Recursos globais
+WINDOW *win1, *win2, *win3;
+int MAX_X, MAX_Y;
+int DURACAO_ATUAL = 0;
 int IS_PLAYING = 0;
+vector <Musica> FILA;
 
 // Temos mutexes para regiões críticas do programa que serão acessadas por diversas partes da aplicação: A fila de reprodução, o estado atual: PLAY/PAUSE e a o quanto da da música atual já foi tocado.
 pthread_mutex_t MUTEX_FILA = PTHREAD_MUTEX_INITIALIZER;
@@ -23,19 +28,10 @@ pthread_mutex_t MUTEX_DURACAO_ATUAL = PTHREAD_MUTEX_INITIALIZER;
 // Esta condição é utilizada para que o worked da UI somente trabalhe quando ocorrer mudanças relevantes para o usuário
 pthread_cond_t UI_SIGNAL = PTHREAD_COND_INITIALIZER;
 
-struct Musica
-{
-    string nome;
-    string artista;
-    int duracao_em_segundos;
-};
-
-vector<Musica> fila;
-
 void adicionar_musica(Musica musicaLeitura) {
     // Travamos a fila para evitar acessos por outras threads
-    while(pthread_mutex_trylock(&MUTEX_FILA) == 0);
-    fila.emplace_back(musicaLeitura);
+    while (pthread_mutex_trylock(&MUTEX_FILA) == 0);
+    FILA.emplace_back(musicaLeitura);
     // A thread de UI é informada de que hove uma mudanca na fila de reprodução, de modo que ela precisa ser re-renderizada
     pthread_cond_signal(&UI_SIGNAL);
     pthread_mutex_unlock(&MUTEX_FILA);
@@ -43,8 +39,8 @@ void adicionar_musica(Musica musicaLeitura) {
 
 void remover_musica(int indice) {
     // Travamos a fila para evitar acessos por outras threads
-    while(pthread_mutex_trylock(&MUTEX_FILA) == 0);
-    fila.erase(fila.begin() + indice);
+    while (pthread_mutex_trylock(&MUTEX_FILA) == 0);
+    FILA.erase(FILA.begin() + indice);
     // A thread de UI é informada de que hove uma mudanca na fila de reprodução, de modo que ela precisa ser re-renderizada
     pthread_cond_signal(&UI_SIGNAL);
     pthread_mutex_unlock(&MUTEX_FILA);
@@ -52,7 +48,7 @@ void remover_musica(int indice) {
 
 void trocar_play_pause() {
     // Travamos o recurso IS_PLAYING para evitar acessos por outras threads
-    while(pthread_mutex_trylock(&MUTEX_IS_PLAYING) == 0);
+    while (pthread_mutex_trylock(&MUTEX_IS_PLAYING) == 0);
     IS_PLAYING = !IS_PLAYING;
     // Liberamos o recurso IS_PLAYING para uso por outas threads
     pthread_mutex_unlock(&MUTEX_IS_PLAYING);
@@ -61,11 +57,11 @@ void trocar_play_pause() {
 
 void pular_musica() {
     // Travamos a fila para evitar acessos por outras threads
-    while(pthread_mutex_trylock(&MUTEX_FILA) == 0);
-    while(pthread_mutex_trylock(&MUTEX_DURACAO_ATUAL) == 0);
-    if(!fila.empty()) {
-        duracao_atual = 0;
-        fila = vector<Musica>(fila.begin() + 1, fila.end());
+    while (pthread_mutex_trylock(&MUTEX_FILA) == 0);
+    while (pthread_mutex_trylock(&MUTEX_DURACAO_ATUAL) == 0);
+    if (!FILA.empty()) {
+        DURACAO_ATUAL = 0;
+        FILA = vector<Musica>(FILA.begin() + 1, FILA.end());
     }
     // A thread de UI é informada de que hove uma mudanca na fila de reprodução, de modo que ela precisa ser re-renderizada
     pthread_cond_signal(&UI_SIGNAL);
@@ -73,26 +69,26 @@ void pular_musica() {
     pthread_mutex_unlock(&MUTEX_DURACAO_ATUAL);
 }
 
-void* receber_input(void* args) {
-    while(true) {
-        int safeX = int(maxX - 4)/5;
-        
+void *receber_input(void *args) {
+    while (true) {
+        int safeX = int(MAX_X - 4) / 5;
+
         wmove(win3, 1, 0);
         wclrtoeol(win3);
         wattron(win3, COLOR_PAIR(1));
         mvwprintw(win3, 1, 2, "A for ADD");
         mvwprintw(win3, 1, safeX, "R for REMOVE");
-        mvwprintw(win3, 1, 2*safeX, "P for PLAY/PAUSE");
-        mvwprintw(win3, 1, 3*safeX, "S for SKIP");
-        mvwprintw(win3, 1, 4*safeX, "Q for QUIT");
+        mvwprintw(win3, 1, 2 * safeX, "P for PLAY/PAUSE");
+        mvwprintw(win3, 1, 3 * safeX, "S for SKIP");
+        mvwprintw(win3, 1, 4 * safeX, "Q for QUIT");
         wattroff(win3, COLOR_PAIR(1));
         wrefresh(win3);
         char option = wgetch(win3);
 
-        if(option == 'Q' || option == 'q') {
+        if (option == 'Q' || option == 'q') {
             endwin();
             exit(0);
-        } else if(option == 'A' || option == 'a') {
+        } else if (option == 'A' || option == 'a') {
             Musica musicaLeitura;
 
             char nome[20];
@@ -111,7 +107,7 @@ void* receber_input(void* args) {
             wrefresh(win3);
             wgetnstr(win3, artista, 20);
             musicaLeitura.artista = string(artista);
-            
+
             int minutos, segundos;
             wmove(win3, 1, 0);
             wclrtoeol(win3);
@@ -121,9 +117,9 @@ void* receber_input(void* args) {
             musicaLeitura.duracao_em_segundos = minutos * 60 + segundos;
 
             adicionar_musica(musicaLeitura);
-        } else if(option == 'R' || option == 'r') {
+        } else if (option == 'R' || option == 'r') {
             int indice;
-            
+
             wmove(win3, 1, 0);
             wclrtoeol(win3);
             mvwprintw(win3, 1, 2, "Digite o índice da musica a ser removida: ");
@@ -146,19 +142,19 @@ void imprimir_fila_de_reproducao() {
     box(win1, ' ', '*');
     wattroff(win1, COLOR_PAIR(3));
 
-    int safeX = int(maxX - 8)/6;
+    int safeX = int(MAX_X - 8) / 6;
 
     mvwprintw(win1, 1, 2, "#");
     mvwprintw(win1, 1, 6, "Musica");
-    mvwprintw(win1, 1, 3*safeX, "Artista");
-    mvwprintw(win1, 1, 5*safeX, "Duracao");
+    mvwprintw(win1, 1, 3 * safeX, "Artista");
+    mvwprintw(win1, 1, 5 * safeX, "Duracao");
 
-    if(fila.empty()) {
-        mvwprintw(win1, (maxY - 6) / 2, (maxX/2) - 11, "Nenhuma música na fila");
+    if (FILA.empty()) {
+        mvwprintw(win1, (MAX_Y - 6) / 2, (MAX_X / 2) - 11, "Nenhuma música na fila");
     }
 
-    for(int i = 0; i < fila.size(); i++) {
-        Musica musica = fila.at(i);
+    for (int i = 0; i < FILA.size(); i++) {
+        Musica musica = FILA.at(i);
 
         if (0 == i) {
             wattron(win1, COLOR_PAIR(2));
@@ -166,11 +162,11 @@ void imprimir_fila_de_reproducao() {
 
         mvwprintw(win1, i + 2, 2, "%d", i);
         mvwprintw(win1, i + 2, 6, musica.nome.data());
-        mvwprintw(win1, i + 2, 3*safeX, musica.artista.data());
+        mvwprintw(win1, i + 2, 3 * safeX, musica.artista.data());
 
         int minutos = musica.duracao_em_segundos / 60;
         int segundos = musica.duracao_em_segundos % 60;
-        mvwprintw(win1, i + 2, 5*safeX, "%02d:%02d", minutos, segundos);
+        mvwprintw(win1, i + 2, 5 * safeX, "%02d:%02d", minutos, segundos);
 
         wattroff(win1, COLOR_PAIR(2));
     }
@@ -181,35 +177,35 @@ void imprimir_fila_de_reproducao() {
 void resetar_barra_de_progresso() {
     wmove(win2, 1, 0);
     wclrtoeol(win2);
-    
+
     wattron(win2, COLOR_PAIR(2));
-    mvwhline(win2, 1, 8, '-', maxX - 17);
+    mvwhline(win2, 1, 8, '-', MAX_X - 17);
     wattroff(win2, COLOR_PAIR(2));
 }
 
 void imprimir_barra_de_progresso() {
-    if(duracao_atual == 0) { 
+    if (DURACAO_ATUAL == 0) {
         resetar_barra_de_progresso();
     }
 
-    int minutos = duracao_atual / 60;
-    int segundos = duracao_atual % 60;
+    int minutos = DURACAO_ATUAL / 60;
+    int segundos = DURACAO_ATUAL % 60;
 
-    int duracaoTotal = fila.empty() ? INT_MAX : fila.at(0).duracao_em_segundos;
+    int duracaoTotal = FILA.empty() ? INT_MAX : FILA.at(0).duracao_em_segundos;
 
-    int minutosTotais = fila.empty() ? 0 : fila.at(0).duracao_em_segundos / 60;
-    int segundosTotais = fila.empty() ? 0 : fila.at(0).duracao_em_segundos % 60;
+    int minutosTotais = FILA.empty() ? 0 : FILA.at(0).duracao_em_segundos / 60;
+    int segundosTotais = FILA.empty() ? 0 : FILA.at(0).duracao_em_segundos % 60;
 
     mvwprintw(win2, 1, 2, "%02d:%02d", minutos, segundos);
-    mvwprintw(win2, 1, maxX - 8, "%02d:%02d", minutosTotais, segundosTotais);
+    mvwprintw(win2, 1, MAX_X - 8, "%02d:%02d", minutosTotais, segundosTotais);
     wattron(win2, COLOR_PAIR(2));
-    mvwhline(win2, 1, 8, ACS_CKBOARD, int(((float) duracao_atual/duracaoTotal) * (maxX - 17)));
+    mvwhline(win2, 1, 8, ACS_CKBOARD, int(((float) DURACAO_ATUAL / duracaoTotal) * (MAX_X - 17)));
     wattroff(win2, COLOR_PAIR(2));
     wrefresh(win2);
 }
 
-void* ui(void* arg) {
-    while(true) {
+void *ui(void *arg) {
+    while (true) {
         // A thread deve aguardar pela sinalização de algum evento relevante para a UI
         pthread_cond_wait(&UI_SIGNAL, &MUTEX_FILA);
 
@@ -218,16 +214,16 @@ void* ui(void* arg) {
     }
 }
 
-void* play(void* arg) {
-    while(true) {
+void *play(void *arg) {
+    while (true) {
         // Travamos a duaração atual pois ela será alterada.
-        while(pthread_mutex_trylock(&MUTEX_DURACAO_ATUAL) == 0);
-        if(IS_PLAYING && !fila.empty() && duracao_atual < fila.at(0).duracao_em_segundos) {
-            duracao_atual++;
-        } else if (!fila.empty() && duracao_atual == fila.at(0).duracao_em_segundos) {
+        while (pthread_mutex_trylock(&MUTEX_DURACAO_ATUAL) == 0);
+        if (IS_PLAYING && !FILA.empty() && DURACAO_ATUAL < FILA.at(0).duracao_em_segundos) {
+            DURACAO_ATUAL++;
+        } else if (!FILA.empty() && DURACAO_ATUAL == FILA.at(0).duracao_em_segundos) {
             pular_musica();
-        } else if (fila.empty()) {
-            duracao_atual = 0;
+        } else if (FILA.empty()) {
+            DURACAO_ATUAL = 0;
             IS_PLAYING = 0;
         }
         sleep(1);
@@ -248,11 +244,11 @@ int main(int argc, char *argv[]) {
     init_pair(2, COLOR_GREEN, COLOR_BLACK);
     init_pair(3, COLOR_BLUE, COLOR_BLACK);
 
-    getmaxyx(stdscr, maxY, maxX);
+    getmaxyx(stdscr, MAX_Y, MAX_X);
 
-    win1 = newwin(maxY - 6, maxX, 0, 0);
-    win2 = newwin(3, maxX, maxY - 6, 0);
-    win3 = newwin(3, maxX, maxY - 3, 0);
+    win1 = newwin(MAX_Y - 6, MAX_X, 0, 0);
+    win2 = newwin(3, MAX_X, MAX_Y - 6, 0);
+    win3 = newwin(3, MAX_X, MAX_Y - 3, 0);
     refresh();
 
     wattron(win1, COLOR_PAIR(3));
