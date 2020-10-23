@@ -28,7 +28,7 @@ vector<Musica> fila;
 
 void imprimir_fila_de_reproducao() {
     wclear(win1);
-    box(win1, '*', '*');
+    box(win1, ' ', '*');
 
     int safeX = int(maxX - 8)/6;
 
@@ -114,8 +114,8 @@ void* receber_input(void* args) {
             IS_PLAYING = !IS_PLAYING;
         } else if (option == 'S' || option == 's') {
             if(!fila.empty()) {
-            duracao_atual = 0;
-            fila = vector<Musica>(fila.begin() + 1, fila.end());
+                duracao_atual = 0;
+                fila = vector<Musica>(fila.begin() + 1, fila.end());
             }
         }
     }
@@ -130,7 +130,7 @@ void* play(void* arg) {
             fila = vector<Musica>(fila.begin() + 1, fila.end());
         } else if (fila.empty()) {
             duracao_atual = 0;
-            IS_PLAYING = !IS_PLAYING;
+            IS_PLAYING = 0;
         }
         sleep(1);
         pthread_cond_broadcast(&cond);
@@ -156,8 +156,8 @@ void imprimir_barra_de_progresso() {
     int segundosTotais = fila.empty() ? 0 : fila.at(0).duracao_em_segundos % 60;
 
     mvwprintw(win2, 1, 2, "%d:%02d", minutos, segundos);
-    mvwprintw(win2, 1, maxX - 6, "%d:%02d", minutosTotais, segundosTotais);
-    mvwhline(win2, 1, 7, '-', int(((float) duracao_atual/duracaoTotal) * (maxX - 15)));
+    mvwprintw(win2, 1, maxX - 7, "%02d:%02d", minutosTotais, segundosTotais);
+    mvwhline(win2, 1, 7, '-', int(((float) duracao_atual/duracaoTotal) * (maxX - 16)));
     wrefresh(win2);
 }
 
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
     win3 = newwin(3, maxX, maxY - 3, 0);
     refresh();
 
-    box(win1, '*', '*');
+    box(win1, ' ', '*');
     box(win2, ' ', '*');
     box(win3, ' ', '*');
     wrefresh(win1);
