@@ -170,7 +170,7 @@ void imprimir_fila_de_reproducao() {
 
         int minutos = musica.duracao_em_segundos / 60;
         int segundos = musica.duracao_em_segundos % 60;
-        mvwprintw(win1, i + 2, 5*safeX, "%d:%02d", minutos, segundos);
+        mvwprintw(win1, i + 2, 5*safeX, "%02d:%02d", minutos, segundos);
 
         wattroff(win1, COLOR_PAIR(2));
     }
