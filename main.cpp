@@ -28,10 +28,12 @@ vector<Musica> fila;
 
 void imprimir_fila_de_reproducao() {
     wclear(win1);
+
+    wattron(win1, COLOR_PAIR(3));
     box(win1, ' ', '*');
+    wattroff(win1, COLOR_PAIR(3));
 
     int safeX = int(maxX - 8)/6;
-
     mvwprintw(win1, 1, 2, "#");
     mvwprintw(win1, 1, 6, "Musica");
     mvwprintw(win1, 1, 3*safeX, "Artista");
@@ -43,6 +45,10 @@ void imprimir_fila_de_reproducao() {
 
     for(int i = 0; i < fila.size(); i++) {
         Musica musica = fila.at(i);
+        
+        if (i==0) {
+            wattron(win1, COLOR_PAIR(2));
+        }
 
         mvwprintw(win1, i + 2, 2, "%d", i);
         mvwprintw(win1, i + 2, 6, musica.nome.data());
@@ -51,6 +57,7 @@ void imprimir_fila_de_reproducao() {
         int minutos = musica.duracao_em_segundos / 60;
         int segundos = musica.duracao_em_segundos % 60;
         mvwprintw(win1, i + 2, 5*safeX, "%d:%02d", minutos, segundos);
+        wattroff(win1, COLOR_PAIR(2));
     }
 
     wrefresh(win1);
@@ -62,12 +69,14 @@ void* receber_input(void* args) {
         
         wmove(win3, 1, 0);
         wclrtoeol(win3);
+        wattron(win3, COLOR_PAIR(1));
         mvwprintw(win3, 1, 2, "A for ADD");
         mvwprintw(win3, 1, safeX, "R for REMOVE");
         mvwprintw(win3, 1, 2*safeX, "P for PLAY/PAUSE");
         mvwprintw(win3, 1, 3*safeX, "S for SKIP");
         mvwprintw(win3, 1, 4*safeX, "Q for QUIT");
         wrefresh(win3);
+        wattroff(win3, COLOR_PAIR(1));
         char option = wgetch(win3);
 
         if(option == 'Q' || option == 'q') {
@@ -157,8 +166,11 @@ void imprimir_barra_de_progresso() {
 
     mvwprintw(win2, 1, 2, "%d:%02d", minutos, segundos);
     mvwprintw(win2, 1, maxX - 7, "%02d:%02d", minutosTotais, segundosTotais);
+    wattron(win2, COLOR_PAIR(2));
     mvwhline(win2, 1, 7, '-', int(((float) duracao_atual/duracaoTotal) * (maxX - 16)));
     wrefresh(win2);
+    wattroff(win2, COLOR_PAIR(2));
+    
 }
 
 void* ui(void* arg) {
@@ -167,7 +179,7 @@ void* ui(void* arg) {
     while(true) {
         imprimir_fila_de_reproducao();
         imprimir_barra_de_progresso();
-        
+
         pthread_cond_wait(&cond, &mutexx);
     }
 }
@@ -178,20 +190,30 @@ int main(int argc, char *argv[]) {
     pthread_t threads[3];
 
     initscr();
+    start_color();
+    init_pair(1, COLOR_RED, COLOR_BLACK);
+    init_pair(2, COLOR_GREEN, COLOR_BLACK);
+    init_pair(3, COLOR_BLUE, COLOR_BLACK);
     getmaxyx(stdscr, maxY, maxX);
 
     win1 = newwin(maxY - 6, maxX, 0, 0);
     win2 = newwin(3, maxX, maxY - 6, 0);
     win3 = newwin(3, maxX, maxY - 3, 0);
     refresh();
-
+    
+    wattron(win1, COLOR_PAIR(3));
+    wattron(win2, COLOR_PAIR(3));
+    wattron(win3, COLOR_PAIR(3));
     box(win1, ' ', '*');
     box(win2, ' ', '*');
     box(win3, ' ', '*');
     wrefresh(win1);
     wrefresh(win2);
     wrefresh(win3);
-      
+    wattroff(win1, COLOR_PAIR(3));
+    wattroff(win1, COLOR_PAIR(3));
+    wattroff(win1, COLOR_PAIR(3));
+
     pthread_create(&threads[0], NULL, &ui, NULL);
     pthread_create(&threads[1], NULL, &play, NULL);
     pthread_create(&threads[2], NULL, &receber_input, NULL);
