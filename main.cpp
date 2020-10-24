@@ -261,8 +261,6 @@ int main(int argc, char *argv[]) {
     wrefresh(win2);
     wrefresh(win3);
     wattroff(win1, COLOR_PAIR(3));
-    wattroff(win1, COLOR_PAIR(3));
-    wattroff(win1, COLOR_PAIR(3));
 
     pthread_create(&threads[0], NULL, &ui, NULL);
     pthread_create(&threads[1], NULL, &play, NULL);
