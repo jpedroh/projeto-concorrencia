@@ -78,7 +78,7 @@ void *receber_input(void *args) {
         wattron(win3, COLOR_PAIR(1));
         mvwprintw(win3, 1, 2, "A for ADD");
         mvwprintw(win3, 1, safeX, "R for REMOVE");
-        mvwprintw(win3, 1, 2 * safeX, "P for PLAY/PAUSE");
+        mvwprintw(win3, 1, 2 * safeX, string("P for ").append(IS_PLAYING ? "PAUSE" : "PLAY").data());
         mvwprintw(win3, 1, 3 * safeX, "S for SKIP");
         mvwprintw(win3, 1, 4 * safeX, "Q for QUIT");
         wattroff(win3, COLOR_PAIR(1));
