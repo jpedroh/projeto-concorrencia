@@ -40,7 +40,9 @@ void adicionar_musica(Musica musicaLeitura) {
 void remover_musica(int indice) {
     // Travamos a fila para evitar acessos por outras threads
     while (pthread_mutex_trylock(&MUTEX_FILA) == 0);
-    FILA.erase(FILA.begin() + indice);
+    if(indice >= 0 && indice < FILA.size()) {
+        FILA.erase(FILA.begin() + indice);
+    }
     // A thread de UI é informada de que hove uma mudanca na fila de reprodução, de modo que ela precisa ser re-renderizada
     pthread_cond_signal(&UI_SIGNAL);
     pthread_mutex_unlock(&MUTEX_FILA);
