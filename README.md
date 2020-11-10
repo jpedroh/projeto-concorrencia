@@ -41,10 +41,11 @@ A fila de execução tem a contagem iniciada em 0.
 ### PLAY/PAUSE
 Alterna entre reproduzindo e em pausa.
 
-
-### SKIP
+### NEXT
 Permite pular a execução da música atual, movendo para a música imediatamente posterior.
 
+### SHUFFLE/SEQUENTIAL
+Permite alternar o modo de execução entre aleatório e sequencial.
 
 ### QUIT
 Encerra a execução do programa.

@@ -19,6 +19,11 @@ int MAX_X, MAX_Y;
 int DURACAO_ATUAL = 0;
 int IS_PLAYING = 0;
 vector <Musica> FILA;
+Musica MUSICA_ATUAL;
+int IS_RANDOM = 0;
+int INDICE_ATUAL = 0;
+
+unordered_set<string> JA_TOCADAS;
 
 // Temos mutexes para regiões críticas do programa que serão acessadas por diversas partes da aplicação: A fila de reprodução, o estado atual: PLAY/PAUSE e a o quanto da da música atual já foi tocado.
 pthread_mutex_t MUTEX_FILA = PTHREAD_MUTEX_INITIALIZER;
@@ -37,11 +42,51 @@ void adicionar_musica(Musica musicaLeitura) {
     pthread_mutex_unlock(&MUTEX_FILA);
 }
 
+void pular_musica() {
+    // Travamos a fila para evitar acessos por outras threads
+    while (pthread_mutex_trylock(&MUTEX_FILA) == 0);
+    while (pthread_mutex_trylock(&MUTEX_DURACAO_ATUAL) == 0);
+    if (!FILA.empty()) {
+        DURACAO_ATUAL = 0;
+        if(IS_RANDOM) {
+            int indice = rand() % FILA.size();
+            auto musica = FILA.at(indice);
+
+            if(JA_TOCADAS.size() == FILA.size()) {
+                JA_TOCADAS.clear();
+            }
+
+            while(JA_TOCADAS.find(musica.nome) != JA_TOCADAS.end()) {
+                indice = rand() % FILA.size();
+                musica = FILA.at(indice);
+            }
+
+            JA_TOCADAS.insert(musica.nome);
+            MUSICA_ATUAL = musica;
+            INDICE_ATUAL = indice;
+        } else {
+            INDICE_ATUAL = (INDICE_ATUAL + 1) % FILA.size();
+            MUSICA_ATUAL = FILA.at(INDICE_ATUAL);
+        }
+    }
+
+    // A thread de UI é informada de que hove uma mudanca na fila de reprodução, de modo que ela precisa ser re-renderizada
+    pthread_cond_signal(&UI_SIGNAL);
+    pthread_mutex_unlock(&MUTEX_FILA);
+    pthread_mutex_unlock(&MUTEX_DURACAO_ATUAL);
+}
+
 void remover_musica(int indice) {
     // Travamos a fila para evitar acessos por outras threads
     while (pthread_mutex_trylock(&MUTEX_FILA) == 0);
     if(indice >= 0 && indice < FILA.size()) {
+        auto musicaRemovida = FILA.at(indice);
         FILA.erase(FILA.begin() + indice);
+
+        JA_TOCADAS.erase(musicaRemovida.nome);
+        if(MUSICA_ATUAL.nome == musicaRemovida.nome) {
+            pular_musica();
+        }
     }
     // A thread de UI é informada de que hove uma mudanca na fila de reprodução, de modo que ela precisa ser re-renderizada
     pthread_cond_signal(&UI_SIGNAL);
@@ -57,23 +102,9 @@ void trocar_play_pause() {
     // Notemos que neste caso não existe uma atualização da UI. Desta forma, a chamada ao sinal da UI é desnecessário
 }
 
-void pular_musica() {
-    // Travamos a fila para evitar acessos por outras threads
-    while (pthread_mutex_trylock(&MUTEX_FILA) == 0);
-    while (pthread_mutex_trylock(&MUTEX_DURACAO_ATUAL) == 0);
-    if (!FILA.empty()) {
-        DURACAO_ATUAL = 0;
-        FILA = vector<Musica>(FILA.begin() + 1, FILA.end());
-    }
-    // A thread de UI é informada de que hove uma mudanca na fila de reprodução, de modo que ela precisa ser re-renderizada
-    pthread_cond_signal(&UI_SIGNAL);
-    pthread_mutex_unlock(&MUTEX_FILA);
-    pthread_mutex_unlock(&MUTEX_DURACAO_ATUAL);
-}
-
 void *receber_input(void *args) {
     while (true) {
-        int safeX = int(MAX_X - 4) / 5;
+        int safeX = int(MAX_X - 4) / 6;
 
         wmove(win3, 1, 0);
         wclrtoeol(win3);
@@ -81,8 +112,9 @@ void *receber_input(void *args) {
         mvwprintw(win3, 1, 2, "A for ADD");
         mvwprintw(win3, 1, safeX, "R for REMOVE");
         mvwprintw(win3, 1, 2 * safeX, string("P for ").append(IS_PLAYING ? "PAUSE" : "PLAY").data());
-        mvwprintw(win3, 1, 3 * safeX, "S for SKIP");
-        mvwprintw(win3, 1, 4 * safeX, "Q for QUIT");
+        mvwprintw(win3, 1, 3 * safeX, "N for NEXT");
+        mvwprintw(win3, 1, 4 * safeX, string("S for ").append(IS_RANDOM ? "SEQUENTIAL" : "SHUFFLE").data());
+        mvwprintw(win3, 1, 5 * safeX, "Q for QUIT");
         wattroff(win3, COLOR_PAIR(1));
         wrefresh(win3);
         char option = wgetch(win3);
@@ -131,8 +163,10 @@ void *receber_input(void *args) {
             remover_musica(indice);
         } else if (option == 'P' || option == 'p') {
             trocar_play_pause();
-        } else if (option == 'S' || option == 's') {
+        } else if (option == 'N' || option == 'n') {
             pular_musica();
+        } else if (option == 'S' || option == 's') {
+            IS_RANDOM = !IS_RANDOM;
         }
     }
 }
@@ -158,7 +192,7 @@ void imprimir_fila_de_reproducao() {
     for (int i = 0; i < FILA.size(); i++) {
         Musica musica = FILA.at(i);
 
-        if (0 == i) {
+        if (musica.nome == MUSICA_ATUAL.nome) {
             wattron(win1, COLOR_PAIR(2));
         }
 
@@ -193,10 +227,10 @@ void imprimir_barra_de_progresso() {
     int minutos = DURACAO_ATUAL / 60;
     int segundos = DURACAO_ATUAL % 60;
 
-    int duracaoTotal = FILA.empty() ? INT_MAX : FILA.at(0).duracao_em_segundos;
+    int duracaoTotal = FILA.empty() ? INT_MAX : MUSICA_ATUAL.duracao_em_segundos;
 
-    int minutosTotais = FILA.empty() ? 0 : FILA.at(0).duracao_em_segundos / 60;
-    int segundosTotais = FILA.empty() ? 0 : FILA.at(0).duracao_em_segundos % 60;
+    int minutosTotais = FILA.empty() ? 0 : MUSICA_ATUAL.duracao_em_segundos / 60;
+    int segundosTotais = FILA.empty() ? 0 : MUSICA_ATUAL.duracao_em_segundos % 60;
 
     mvwprintw(win2, 1, 2, "%02d:%02d", minutos, segundos);
     mvwprintw(win2, 1, MAX_X - 8, "%02d:%02d", minutosTotais, segundosTotais);
@@ -220,9 +254,9 @@ void *play(void *arg) {
     while (true) {
         // Travamos a duaração atual pois ela será alterada.
         while (pthread_mutex_trylock(&MUTEX_DURACAO_ATUAL) == 0);
-        if (IS_PLAYING && !FILA.empty() && DURACAO_ATUAL < FILA.at(0).duracao_em_segundos) {
+        if (IS_PLAYING && !FILA.empty() && DURACAO_ATUAL < MUSICA_ATUAL.duracao_em_segundos) {
             DURACAO_ATUAL++;
-        } else if (!FILA.empty() && DURACAO_ATUAL == FILA.at(0).duracao_em_segundos) {
+        } else if (!FILA.empty() && DURACAO_ATUAL == MUSICA_ATUAL.duracao_em_segundos) {
             pular_musica();
         } else if (FILA.empty()) {
             DURACAO_ATUAL = 0;
