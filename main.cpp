@@ -42,32 +42,43 @@ void adicionar_musica(Musica musicaLeitura) {
     pthread_mutex_unlock(&MUTEX_FILA);
 }
 
+bool musica_ja_tocada(Musica musica) {
+    return JA_TOCADAS.find(musica.nome) != JA_TOCADAS.end();
+}
+
+pair<Musica, int> escolher_musica_aleatoriamente() {
+    int indice = rand() % FILA.size();
+    auto musica_escolhida = FILA.at(indice);
+
+    if(JA_TOCADAS.size() == FILA.size()) {
+        JA_TOCADAS.clear();
+    }
+
+    while(musica_ja_tocada(musica_escolhida)) {
+        indice = rand() % FILA.size();
+        musica_escolhida = FILA.at(indice);
+    }
+
+    return pair<Musica, int>(musica_escolhida, indice);
+}
+
 void pular_musica() {
     // Travamos a fila para evitar acessos por outras threads
     while (pthread_mutex_trylock(&MUTEX_FILA) == 0);
     while (pthread_mutex_trylock(&MUTEX_DURACAO_ATUAL) == 0);
     if (!FILA.empty()) {
-        DURACAO_ATUAL = 0;
         if(IS_RANDOM) {
-            int indice = rand() % FILA.size();
-            auto musica = FILA.at(indice);
+            auto escolha_aleatoria = escolher_musica_aleatoriamente();
 
-            if(JA_TOCADAS.size() == FILA.size()) {
-                JA_TOCADAS.clear();
-            }
-
-            while(JA_TOCADAS.find(musica.nome) != JA_TOCADAS.end()) {
-                indice = rand() % FILA.size();
-                musica = FILA.at(indice);
-            }
-
-            JA_TOCADAS.insert(musica.nome);
-            MUSICA_ATUAL = musica;
-            INDICE_ATUAL = indice;
+            MUSICA_ATUAL = escolha_aleatoria.first;
+            INDICE_ATUAL = escolha_aleatoria.second;
         } else {
             INDICE_ATUAL = (INDICE_ATUAL + 1) % FILA.size();
             MUSICA_ATUAL = FILA.at(INDICE_ATUAL);
         }
+
+        DURACAO_ATUAL = 0;
+        JA_TOCADAS.insert(MUSICA_ATUAL.nome);
     }
 
     // A thread de UI é informada de que hove uma mudanca na fila de reprodução, de modo que ela precisa ser re-renderizada
